@@ -1,0 +1,8 @@
+*.o
+*.exe
+venv/
+.venv/
+build/
+build-*/
+build_*/
+.ipynb_checkpoints/
