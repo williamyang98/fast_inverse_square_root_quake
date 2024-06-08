@@ -127,7 +127,7 @@ int main(int argc, char** argv) {
         benchmarks.push_back({ name, [k0](float x) { return quick_invsqrt_quake(x, k0, 1); } });
     };
     add_quake_benchmark("Naive (k0=0)", int32_t(381) << 22);
-    add_quake_benchmark("Original Quake", 0x5F3759DF);
+    add_quake_benchmark("Original Quake", 0x5F3759DF);    // 1597463007
     add_quake_benchmark("Gradient descent single parameter", 1597311293);
     benchmarks.push_back({ "Jan Kadlec", 
         [](float x) { 

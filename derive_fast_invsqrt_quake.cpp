@@ -46,15 +46,18 @@ int main(int argc, char** argv) {
     printf("training over %zu samples\n", N);
 
     // Increase P_norm to trade off lower mean squared error for lower max absolute error
-    // constexpr size_t P_norm = 6; // produces solution closer to original Quake
-    // constexpr double P_norm_scale = 4e4;
-    // constexpr double grad_scale = 1e6;
+    constexpr size_t P_norm = 6; // minimise maximum absolute error like original Quake
+    constexpr double P_norm_scale = 4e4;
+    constexpr double grad_scale = 1e6;
     // constexpr size_t P_norm = 4;
     // constexpr double P_norm_scale = 1e5;
     // constexpr double grad_scale = 1e7;
-    constexpr size_t P_norm = 2; // mean squared error
-    constexpr double P_norm_scale = 1e8;
-    constexpr double grad_scale = 1e8;
+    // constexpr size_t P_norm = 2; // mean squared error
+    // constexpr double P_norm_scale = 1e8;
+    // constexpr double grad_scale = 1e8;
+    // constexpr size_t P_norm = 1; // mean absolute error
+    // constexpr double P_norm_scale = 1e12;
+    // constexpr double grad_scale = 1e11;
 
     int64_t k1 = 0;
     int64_t best_k1 = k1;
@@ -63,7 +66,7 @@ int main(int argc, char** argv) {
     constexpr size_t TOTAL_ITERATIONS = 102400;
     constexpr size_t PRINT_ITER = TOTAL_ITERATIONS / 32;
     for (size_t iter = 0; iter < TOTAL_ITERATIONS; iter++) {
-        double mean_error = 0;
+        double mean_de_dk = 0;
         double mean_loss = 0;
         for (size_t i = 0; i < N; i++) {
             // Qy ~ 2^22*381 - k1 - 0.5*Qx
@@ -74,12 +77,32 @@ int main(int argc, char** argv) {
             // de/dk = (1-Qy/Qy')^(n-1) * 1/Qy'
             const double Qy_target_f64 = double(Qy_target);
             const double error = (1.0 - double(Qy_pred)/Qy_target_f64)*P_norm_scale;
-            const double error_n = get_nth_power<P_norm-2>(error);
-            const double loss = get_nth_power<P_norm>(error);
-            mean_error += error*error_n/Qy_target_f64;
+            double de_dk;
+            double loss;
+            if constexpr(P_norm > 1) {
+                de_dk = get_nth_power<P_norm-1>(error);
+                loss = get_nth_power<P_norm>(error);
+                de_dk /= Qy_target_f64;
+            } else {
+                // L1 norm is absolute value
+                // Since y = |x| is not differentiable we use pseudo Huber loss function
+                // https://en.wikipedia.org/wiki/Huber_loss#Pseudo-Huber_loss_function
+                // y = sqrt(x^2+k^2)-k ~ |x| as k -> 0
+                // dy/dx = x/sqrt(x^2+k^2)
+                // x = 1-g(y0)/y_target
+                // dx/dg = -1/y_target
+                // dy/dg = x/sqrt(x^2+k^2) * -1/y_target
+                constexpr double k_huber = 0.01;
+                constexpr double k_huber_2 = k_huber*k_huber;
+                const double error_2 = get_nth_power<2>(error);
+                de_dk = error/std::sqrt(error_2 + k_huber_2);
+                de_dk /= Qy_target_f64;
+                loss = std::abs(error);
+            }
+            mean_de_dk += de_dk;
             mean_loss += loss;
         }
-        mean_error /= double(N);
+        mean_de_dk /= double(N);
         mean_loss /= double(N);
 
         if (mean_loss < best_loss) {
@@ -88,11 +111,11 @@ int main(int argc, char** argv) {
             best_iter = iter;
         }
 
-        const int64_t gradient = -int64_t(mean_error*grad_scale);
+        const int64_t gradient = -int64_t(mean_de_dk*grad_scale);
         k1 += gradient;
         if (iter % PRINT_ITER == 0 || gradient == 0) {
-            printf("iter=%.3zu, loss=%.3e, mean_error=%.3e, gradient=%" PRIi64 "\n", 
-                iter, mean_loss, mean_error, gradient);
+            printf("iter=%.3zu, loss=%.3e, mean_de_dk=%.3e, gradient=%" PRIi64 "\n", 
+                iter, mean_loss, mean_de_dk, gradient);
         }
         if (gradient == 0) {
             break;
