@@ -127,8 +127,8 @@ int main(int argc, char** argv) {
         benchmarks.push_back({ name, [k0](float x) { return quick_invsqrt_quake(x, k0, 1); } });
     };
     add_quake_benchmark("Naive (k0=0)", int32_t(381) << 22);
-    add_quake_benchmark("Original Quake", 0x5F3759DF);    // 1597463007
-    add_quake_benchmark("Gradient descent single parameter", 1597311293);
+    add_quake_benchmark("Original Quake", 0x5F3759DF); // 1597463007
+    add_quake_benchmark("Gradient descent (1)", 1597457112); // optimised to L6 norm
     benchmarks.push_back({ "Jan Kadlec", 
         [](float x) { 
             JanKadlec params;
@@ -138,12 +138,12 @@ int main(int argc, char** argv) {
             return quick_invsqrt_jan_kadlec(x, params);
         } 
     });
-    benchmarks.push_back({ "Gradient descent with three parameters",
+    benchmarks.push_back({ "Gradient descent (3)", // optimised to L6 norm
         [](float x) { 
             JanKadlec params;
-            params.k0 = 1591369693;
-            params.k1 = -2.13550628f;
-            params.k2 = 2.43447248f;
+            params.k0 = 1595889709;
+            params.k1 = -0.70966386f;
+            params.k2 = 1.68637413f;
             return quick_invsqrt_jan_kadlec(x, params);
         } 
     });
@@ -176,7 +176,8 @@ int main(int argc, char** argv) {
     std::vector<float> E_pred;
     E_pred.resize(N);
     for (const auto& benchmark: benchmarks) {
-        float mean_abs_error = 0.0f;
+        float mean_L1_error = 0.0f;
+        float mean_L6_error = 0.0f;
         float mean_error = 0.0f;
         float max_error = 0.0f;
         float min_error = 0.0f;
@@ -186,12 +187,14 @@ int main(int argc, char** argv) {
             const float y_pred = benchmark.invsqrt(x);
             const float error = (y_pred/y_target)-1.0f;
             E_pred[i] = error;
-            mean_abs_error += std::abs(error);
+            mean_L1_error += std::abs(error);
+            mean_L6_error += std::pow(error, 6.0f);
             mean_error += error;
             min_error = (error < min_error) ? error : min_error;
             max_error = (error > max_error) ? error : max_error;
         }
-        mean_abs_error /= float(N);
+        mean_L1_error /= float(N);
+        mean_L6_error /= float(N);
         mean_error /= float(N);
         float std_error = 0.0f;
         for (size_t i = 0; i < N; i++) {
@@ -202,10 +205,11 @@ int main(int argc, char** argv) {
         std_error = std::sqrt(std_error);
 
         printf("name = %s\n", benchmark.name);
-        printf("mean_abs_error = %+.6f %%\n", mean_abs_error*1e2);
-        printf("max_error      = %+.6f %%\n", max_error*1e2);
-        printf("min_error      = %+.6f %%\n", min_error*1e2);
-        printf("mean+std error = %+.6f %% +/- %.6f %%\n", mean_error*1e2, std_error*1e2);
+        printf("L1_error       = %+.2e %%\n", mean_L1_error*1e2);
+        printf("L6_error       = %+.2e %%\n", mean_L6_error*1e2);
+        printf("max_error      = %+.2e %%\n", max_error*1e2);
+        printf("min_error      = %+.2e %%\n", min_error*1e2);
+        printf("mean+std error = %+.2e %% +/- %.2e %%\n", mean_error*1e2, std_error*1e2);
         printf("\n");
     }
 

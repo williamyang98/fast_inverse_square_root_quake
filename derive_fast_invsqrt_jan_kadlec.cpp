@@ -141,7 +141,7 @@ int main(int argc, char** argv) {
             // NOTE: Increase P_norm to trade off lower mean absolute error for lower max absolute error
             constexpr size_t P_norm = 6; // minimise max absolute error
             constexpr double P_norm_scale = 1e2;
-            constexpr double scale_de_dk[3] = {1e3, 1e0, 1e0};
+            constexpr double scale_de_dk[3] = {1e4, 1e0, 1e0};
             // constexpr size_t P_norm = 2; // mean squared error
             // constexpr double P_norm_scale = 1e2;
             // constexpr double scale_de_dk[3] = {1e3, 1e0, 1e0};
